@@ -3,4 +3,3 @@ pandas
 skellyforge
 numpy
 pydantic
-freemocap
