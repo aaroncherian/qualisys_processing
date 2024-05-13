@@ -13,7 +13,7 @@ from skellyforge.freemocap_utils.constants import (
 from skeleton.create_skeleton import create_skeleton_model
 from qualisys.qualisys_model_info import QualisysModelInfo
 
-
+from freemocap.calculate_center_of_mass import calculate_center_of_mass_from_skeleton
 
 
 
@@ -86,6 +86,12 @@ if __name__ == '__main__':
     path_to_qualisys_folder = path_to_recording_folder / 'qualisys_data'
     path_to_qualisys_csv = path_to_qualisys_folder / 'synchronized_qualisys_markers.csv'
     save_path = path_to_qualisys_folder / 'qualisys_joint_centers_3d_xyz.npy'
+    
+    center_of_mass_folder_path = path_to_qualisys_folder / 'center_of_mass'
+    center_of_mass_folder_path.mkdir(parents=True, exist_ok=True)
+    total_body_com_save_path = center_of_mass_folder_path/'total_body_center_of_mass_xyz.npy'
+    segment_com_save_path = center_of_mass_folder_path / 'segmentCOM_frame_joint_xyz.npy'
+
 
     qualisys_dataframe = pd.read_csv(path_to_qualisys_csv)
 
@@ -112,8 +118,12 @@ if __name__ == '__main__':
         'qualisys joint centers': filt_interp_joint_centers_frame_marker_dimension,
     }
     
+    qualisys_segment_com, qualisys_total_body_com = calculate_center_of_mass_from_skeleton(qualisys_skeleton)
+
     plot_3d_scatter(data_arrays_to_plot)
     np.save(save_path, filt_interp_joint_centers_frame_marker_dimension)
+    np.save(total_body_com_save_path, qualisys_total_body_com)
+    np.save(segment_com_save_path, qualisys_segment_com)
 
     
 
