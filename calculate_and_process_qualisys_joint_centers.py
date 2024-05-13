@@ -10,6 +10,12 @@ from skellyforge.freemocap_utils.constants import (
     TASK_FILTERING,
 )
 
+from skeleton.create_skeleton import create_skeleton_model
+from qualisys.qualisys_model_info import QualisysModelInfo
+
+
+
+
 
 def dataframe_to_numpy(df):
     # Get the list of unique markers in the order they appear for frame 0
@@ -78,7 +84,7 @@ if __name__ == '__main__':
     # path_to_recording_folder = Path(r'D:\2023-05-17_MDN_NIH_data\1.0_recordings\calib_3\sesh_2023-05-17_13_48_44_MDN_treadmill_2')
     path_to_recording_folder = Path(r'D:\2024-04-25_P01\1.0_recordings\sesh_2024-04-25_14_45_59_P01_NIH_Trial1')
     path_to_qualisys_folder = path_to_recording_folder / 'qualisys_data'
-    path_to_qualisys_csv = path_to_qualisys_folder / 'qualisys_markers_dataframe.csv'
+    path_to_qualisys_csv = path_to_qualisys_folder / 'synchronized_qualisys_markers.csv'
     save_path = path_to_qualisys_folder / 'qualisys_joint_centers_3d_xyz.npy'
 
     qualisys_dataframe = pd.read_csv(path_to_qualisys_csv)
@@ -89,7 +95,17 @@ if __name__ == '__main__':
     post_process_task_worker.run()
     filt_interp_joint_centers_frame_marker_dimension = post_process_task_worker.tasks[TASK_FILTERING]['result']
 
-    
+        
+    qualisys_skeleton = create_skeleton_model(
+        actual_markers=QualisysModelInfo.landmark_names,
+        num_tracked_points=QualisysModelInfo.num_tracked_points,
+        segment_connections=QualisysModelInfo.segment_connections,
+        virtual_markers=QualisysModelInfo.virtual_markers_definitions,
+        center_of_mass_info=QualisysModelInfo.center_of_mass_definitions,
+    )
+
+    qualisys_skeleton.integrate_freemocap_3d_data(filt_interp_joint_centers_frame_marker_dimension)
+
 
     data_arrays_to_plot = {
         'qualisys markers': qualisys_markers_frame_marker_dimension,
