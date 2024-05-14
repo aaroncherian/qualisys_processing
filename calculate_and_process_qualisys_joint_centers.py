@@ -8,6 +8,10 @@ from skellyforge.freemocap_utils.config import default_settings
 from skellyforge.freemocap_utils.constants import (
     TASK_INTERPOLATION,
     TASK_FILTERING,
+    TASK_FINDING_GOOD_FRAME,
+    TASK_SKELETON_ROTATION,
+    PARAM_GOOD_FRAME,
+    PARAM_AUTO_FIND_GOOD_FRAME
 )
 
 from skeleton.create_skeleton import create_skeleton_model
@@ -97,9 +101,14 @@ if __name__ == '__main__':
 
     joint_centers_frame_marker_dimension,qualisys_markers_frame_marker_dimension = main(qualisys_dataframe, joint_center_weights)
 
-    post_process_task_worker = TaskWorkerThread(raw_skeleton_data=joint_centers_frame_marker_dimension, task_list= [TASK_INTERPOLATION, TASK_FILTERING], settings=default_settings)
+    adjusted_settings = default_settings.copy()
+    adjusted_settings[TASK_SKELETON_ROTATION][PARAM_AUTO_FIND_GOOD_FRAME] = False
+    adjusted_settings[TASK_SKELETON_ROTATION][PARAM_GOOD_FRAME] = 450 
+
+    post_process_task_worker = TaskWorkerThread(raw_skeleton_data=joint_centers_frame_marker_dimension, task_list= [TASK_INTERPOLATION, TASK_FILTERING, TASK_FINDING_GOOD_FRAME, TASK_SKELETON_ROTATION], settings=default_settings, landmark_names=QualisysModelInfo.landmark_names)
     post_process_task_worker.run()
-    filt_interp_joint_centers_frame_marker_dimension = post_process_task_worker.tasks[TASK_FILTERING]['result']
+
+    filt_interp_joint_centers_frame_marker_dimension = post_process_task_worker.tasks[TASK_SKELETON_ROTATION]['result']
 
         
     qualisys_skeleton = create_skeleton_model(
@@ -125,6 +134,7 @@ if __name__ == '__main__':
     np.save(total_body_com_save_path, qualisys_total_body_com)
     np.save(segment_com_save_path, qualisys_segment_com)
 
+    print('Saved joint centers and center of mass data.')
     
 
     f = 2
