@@ -61,7 +61,7 @@ def create_generic_qualisys_marker_dataframe(qualisys_biomechanical_marker_dataf
     return qualisys_generic_marker_dataframe
 
 
-def main(original_qualisys_dataframe: pd.DataFrame, joint_center_weights: dict):
+def main(original_qualisys_dataframe: pd.DataFrame, joint_center_weights: dict, qualisys_marker_mappings: dict):
     
 
     qualisys_generic_marker_dataframe = create_generic_qualisys_marker_dataframe(original_qualisys_dataframe, qualisys_marker_mappings)
