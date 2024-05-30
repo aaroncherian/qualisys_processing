@@ -325,13 +325,26 @@ lag_seconds = convert_lag_from_frames_to_seconds(optimal_lag, framerate)
 
 print(f"Calculated lag in seconds: {lag_seconds}")
 
-qualisys_df_with_unix_lag_corrected = insert_qualisys_timestamp_column(qualisys_joint_centers_dataframe, qualisys_start_timestamp, lag_in_seconds=lag_seconds)
+qualisys_joint_centers_dataframe['Time'] = qualisys_df['Time']
 
-synchronized_qualisys_df = synchronize_qualisys_data(qualisys_df_with_unix_lag_corrected, freemocap_timestamps)
-synced_qualisys_data = synchronized_qualisys_df[qualisys_joint_centers_dataframe['marker'] == joint_to_compare]['y'].values
-optimal_lag = calculate_optimal_lag(freemocap_data, synced_qualisys_data)
+# qualisys_df_with_unix_lag_corrected = insert_qualisys_timestamp_column(qualisys_joint_centers_dataframe, qualisys_start_timestamp, lag_in_seconds=lag_seconds)
 
-assert synchronized_qualisys_df.shape[1] == qualisys_df.shape[
-    1], "qualisys_synchronized_df does not have the same number of columns as qualisys_original_df"
-assert synchronized_qualisys_df.shape[0] == len(
-    freemocap_timestamps), "qualisys_synchronized_df does not have the same number of rows as freemocap_timestamps"
+# synchronized_qualisys_df = synchronize_qualisys_data(qualisys_df_with_unix_lag_corrected, freemocap_timestamps)
+# synced_qualisys_data = synchronized_qualisys_df[qualisys_joint_centers_dataframe['marker'] == joint_to_compare]['y'].values
+# optimal_lag = calculate_optimal_lag(freemocap_data, synced_qualisys_data)
+
+# assert synchronized_qualisys_df.shape[1] == qualisys_df.shape[
+#     1], "qualisys_synchronized_df does not have the same number of columns as qualisys_original_df"
+# assert synchronized_qualisys_df.shape[0] == len(
+#     freemocap_timestamps), "qualisys_synchronized_df does not have the same number of rows as freemocap_timestamps"
+
+path_to_qualisys_folder = recording_folder_path / 'qualisys_data'
+path_to_qualisys_csv = path_to_qualisys_folder / 'synchronized_qualisys_markers.csv'
+save_path = path_to_qualisys_folder / 'qualisys_joint_centers_3d_xyz.npy'
+
+qualisys_joint_centers_dataframe.to_csv(path_to_qualisys_csv, index=False)
+
+qualisys_joint_centers_frame_marker_dimension = dataframe_to_numpy(qualisys_joint_centers_dataframe)
+np.save(save_path, qualisys_joint_centers_frame_marker_dimension)
+
+
