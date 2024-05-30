@@ -19,6 +19,7 @@ from qualisys.qualisys_model_info import QualisysModelInfo
 
 from freemocap.calculate_center_of_mass import calculate_center_of_mass_from_skeleton
 
+import numpy as np
 
 
 def dataframe_to_numpy(df):
@@ -69,6 +70,11 @@ def main(original_qualisys_dataframe: pd.DataFrame, joint_center_weights: dict, 
     marker_names = qualisys_generic_marker_dataframe['marker'].unique().tolist()
     joint_centers_frame_marker_dimension = calculate_joint_centers(qualisys_markers_frame_marker_dimension, joint_center_weights, marker_names)
 
+    joint_centers_dataframe = pd.DataFrame(joint_centers_frame_marker_dimension.reshape(-1, 3), columns=['x', 'y', 'z'])
+    joint_centers_dataframe['frame'] = np.repeat(np.arange(joint_centers_frame_marker_dimension.shape[0]), len(joint_center_weights))
+    joint_centers_dataframe['marker'] = np.tile(list(joint_center_weights.keys()), joint_centers_frame_marker_dimension.shape[0])
+    joint_centers_dataframe = joint_centers_dataframe[['frame', 'marker', 'x', 'y', 'z']]
+
     return joint_centers_frame_marker_dimension, qualisys_markers_frame_marker_dimension
 
 
@@ -99,7 +105,7 @@ if __name__ == '__main__':
 
     qualisys_dataframe = pd.read_csv(path_to_qualisys_csv)
 
-    joint_centers_frame_marker_dimension,qualisys_markers_frame_marker_dimension = main(qualisys_dataframe, joint_center_weights)
+    joint_centers_frame_marker_dimension,qualisys_markers_frame_marker_dimension = main(qualisys_dataframe, joint_center_weights, qualisys_marker_mappings)
 
     adjusted_settings = default_settings.copy()
     adjusted_settings[TASK_SKELETON_ROTATION][PARAM_AUTO_FIND_GOOD_FRAME] = False
