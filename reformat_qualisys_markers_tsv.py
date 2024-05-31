@@ -58,35 +58,52 @@ def insert_qualisys_timestamp_column(df, start_timestamp, lag_in_seconds=0):
     Insert a new column with Unix timestamps to the Qualisys dataframe.
     
     Parameters:
-        df (pd.DataFrame): The original Qualisys dataframe with a 'Time' column in seconds.
+        df (pd.DataFrame): The reorganized Qualisys dataframe with a 'time' column in seconds.
         start_timestamp (str): The Qualisys start time as a string in the format '%Y-%m-%d, %H:%M:%S.%f'.
         lag_in_seconds (float, optional): The lag between Qualisys and FreeMoCap data in seconds. Default is 0.
         
     Returns:
         pd.DataFrame: The modified Qualisys dataframe with a new 'unix_timestamps' column.
     """
-    start_time = datetime.strptime(start_timestamp[0], '%Y-%m-%d, %H:%M:%S.%f')
+    # Parse the start timestamp and convert to Unix time
+    start_time = datetime.strptime(start_timestamp, '%Y-%m-%d, %H:%M:%S.%f')
     start_unix = start_time.timestamp()
     
-    # Adjust the 'Time' column based on the calculated lag in seconds
-    adjusted_time = df['Time'] + lag_in_seconds
+    # Adjust the 'time' column based on the calculated lag in seconds
+    adjusted_time = df['time'] + lag_in_seconds
+    
+    # Calculate Unix timestamps
+    unix_timestamps = adjusted_time + start_unix
     
     # Insert the new column with Unix timestamps
-    df.insert(df.columns.get_loc('Time') + 1, 'unix_timestamps', adjusted_time + start_unix)
+    df.insert(df.columns.get_loc('time') + 1, 'unix_timestamps', unix_timestamps)
     
     return df
 
-def reformat_qualisys_dataframe(qualisys_dataframe: pd.DataFrame,):
-    qualisys_dataframe.drop(columns=['Frame', 'Time', 'unix_timestamps'] + [col for col in qualisys_dataframe.columns if 'Unnamed' in col], inplace=True)
+def reformat_qualisys_dataframe(qualisys_dataframe: pd.DataFrame):
+    # Extract necessary columns and drop unnecessary ones
+    time_col = qualisys_dataframe['Time']
+    qualisys_dataframe.drop(columns=['Frame', 'Time'] + [col for col in qualisys_dataframe.columns if 'Unnamed' in col], inplace=True)
 
+    # Get the marker names and create a MultiIndex
+    markers = [col.split(' ')[0] for col in qualisys_dataframe.columns[::3]]
+    multi_index = pd.MultiIndex.from_product([qualisys_dataframe.index, markers], names=['frame', 'marker'])
 
-    # Create the reorganized_data list with marker names as strings
-    reorganized_qualisys_data= [
-        [frame, col.split(' ')[0], row[col], row[f"{col.split(' ')[0]} Y"], row[f"{col.split(' ')[0]} Z"]]
-        for frame, row in qualisys_dataframe.iterrows() for col in qualisys_dataframe.columns[::3]
-    ]
+    # Create an empty dataframe with the MultiIndex and columns for x, y, z, and time
+    reorganized_qualisys_dataframe = pd.DataFrame(index=multi_index, columns=['x', 'y', 'z', 'time'])
 
-    reorganized_qualisys_dataframe = pd.DataFrame(reorganized_qualisys_data, columns=['frame', 'marker', 'x', 'y', 'z'])
+    # Populate the dataframe with x, y, z, and time values
+    for marker in markers:
+        reorganized_qualisys_dataframe.loc[pd.IndexSlice[:, marker], 'x'] = qualisys_dataframe[f"{marker} X"].values
+        reorganized_qualisys_dataframe.loc[pd.IndexSlice[:, marker], 'y'] = qualisys_dataframe[f"{marker} Y"].values
+        reorganized_qualisys_dataframe.loc[pd.IndexSlice[:, marker], 'z'] = qualisys_dataframe[f"{marker} Z"].values
+
+    # Add the time column
+    reorganized_qualisys_dataframe['time'] = time_col.repeat(len(markers)).values
+
+    # Reset the index to convert MultiIndex to columns
+    reorganized_qualisys_dataframe.reset_index(inplace=True)
+
     return reorganized_qualisys_dataframe
 
 def reformat_freemocap_dataframe(freemocap_dataframe: pd.DataFrame):
@@ -260,6 +277,7 @@ synced_tsv_name = 'synchronized_qualisys_markers.tsv'
 
 qualisys_df, header_dict = strip_qualisys_tsv(qualisys_tsv_path, header_line_count=header_line_count)
 qualisys_start_timestamp = header_dict["time_stamp"]
+new_qual_dataframe = reformat_qualisys_dataframe(qualisys_df)
 qualisys_df_with_unix = insert_qualisys_timestamp_column(qualisys_df.copy(), qualisys_start_timestamp, lag_in_seconds=0)
 
 freemocap_timestamps, framerate = create_freemocap_unix_timestamps(freemocap_csv_path)
@@ -268,19 +286,23 @@ print(f"Calculated FreeMoCap framerate: {framerate}")
 
 qualisys_df, header_dict = strip_qualisys_tsv(qualisys_tsv_path, header_line_count=header_line_count)
 qualisys_start_timestamp = header_dict["time_stamp"]
-qualisys_df_with_unix = insert_qualisys_timestamp_column(qualisys_df.copy(), qualisys_start_timestamp, lag_in_seconds=0)
 
-synchronized_qualisys_df = synchronize_qualisys_data(qualisys_df_with_unix, freemocap_timestamps)
+new_qual_dataframe = reformat_qualisys_dataframe(qualisys_df)
 
-new_qual_dataframe = reformat_qualisys_dataframe(synchronized_qualisys_df)
-print(synchronized_qualisys_df.head())
+# qualisys_df_with_unix = insert_qualisys_timestamp_column(qualisys_df.copy(), qualisys_start_timestamp, lag_in_seconds=0)
 
-freemocap_body_df = pd.read_csv(freemocap_body_csv)
-new_freemocap_dataframe = reformat_freemocap_dataframe(freemocap_body_df)
-freemocap_numpy = dataframe_to_numpy(new_freemocap_dataframe)
+# synchronized_qualisys_df = synchronize_qualisys_data(qualisys_df_with_unix, freemocap_timestamps)
+
+# new_qual_dataframe = reformat_qualisys_dataframe(synchronized_qualisys_df)
+# print(synchronized_qualisys_df.head())
+
+# freemocap_body_df = pd.read_csv(freemocap_body_csv)
+# new_freemocap_dataframe = reformat_freemocap_dataframe(freemocap_body_df)
+# freemocap_numpy = dataframe_to_numpy(new_freemocap_dataframe)
 
 
 joint_centers_frame_marker_dimension, qual_markers = main(new_qual_dataframe, joint_center_weights, qualisys_marker_mappings)
+qualisys_joint_centers_dataframe = pd.DataFrame(joint_centers_frame_marker_dimension.reshape(-1, 3), columns=['x', 'y', 'z'])
 
 
 adjusted_settings = default_settings.copy()
