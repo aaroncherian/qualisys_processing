@@ -40,18 +40,51 @@ def strip_qualisys_tsv(tsv_path, header_line_count):
     header_dict = {item[0].lower(): item[1:] for item in header}
     return original_df, header_dict
 
+import pandas as pd
+
 def synchronize_qualisys_data(qualisys_df, freemocap_timestamps):
-    synchronized_rows = {}
-    for frame_number, timestamp in enumerate(freemocap_timestamps):
-        if frame_number + 1 < len(freemocap_timestamps):
-            next_timestamp = freemocap_timestamps[frame_number + 1]
-            rows_in_range = qualisys_df.loc[(qualisys_df['unix_timestamps'] >= timestamp) & (qualisys_df['unix_timestamps'] < next_timestamp)]
-            mean_row = rows_in_range.mean(axis=0, skipna=True)
-        else:
-            rows_in_range = qualisys_df.loc[(qualisys_df['unix_timestamps'] >= timestamp)]
-            mean_row = rows_in_range.iloc[0]
-        synchronized_rows[frame_number] = mean_row
-    return pd.DataFrame.from_dict(synchronized_rows, orient='index', columns=qualisys_df.columns)
+    """
+    Synchronize Qualisys data with FreeMoCap timestamps.
+
+    Parameters:
+        qualisys_df (pd.DataFrame): The reorganized Qualisys dataframe with 'unix_timestamps'.
+        freemocap_timestamps (list): List of FreeMoCap timestamps.
+
+    Returns:
+        pd.DataFrame: Synchronized Qualisys dataframe.
+    """
+    # Convert freemocap_timestamps to a numpy array for efficient processing
+    freemocap_timestamps = np.array(freemocap_timestamps)
+    
+    # Initialize list to collect synchronized rows
+    synchronized_rows = []
+
+    # Pre-calculate the intervals for more efficient indexing
+    start_idx = np.searchsorted(qualisys_df['unix_timestamps'].values, freemocap_timestamps[:-1], side='left')
+    end_idx = np.searchsorted(qualisys_df['unix_timestamps'].values, freemocap_timestamps[1:], side='left')
+
+    for frame_number, (start, end) in enumerate(zip(start_idx, end_idx)):
+        rows_in_range = qualisys_df.iloc[start:end]
+        if not rows_in_range.empty:
+            mean_row = rows_in_range.select_dtypes(include='number').mean(axis=0, skipna=True)
+            first_row = rows_in_range.iloc[0].drop(labels=mean_row.index, errors='ignore')
+            mean_row = pd.concat([mean_row, first_row])
+            synchronized_rows.append(mean_row)
+    
+    # Handle the last timestamp separately
+    last_timestamp = freemocap_timestamps[-1]
+    rows_in_range = qualisys_df.loc[qualisys_df['unix_timestamps'] >= last_timestamp]
+    if not rows_in_range.empty:
+        mean_row = rows_in_range.select_dtypes(include='number').mean(axis=0, skipna=True)
+        first_row = rows_in_range.iloc[0].drop(labels=mean_row.index, errors='ignore')
+        mean_row = pd.concat([mean_row, first_row])
+        synchronized_rows.append(mean_row)
+
+    # Create a new dataframe from the synchronized rows
+    synchronized_df = pd.DataFrame(synchronized_rows)
+    
+    return synchronized_df
+
 
 def insert_qualisys_timestamp_column(df, start_timestamp, lag_in_seconds=0):
     """
@@ -276,18 +309,17 @@ synced_tsv_name = 'synchronized_qualisys_markers.tsv'
 
 
 qualisys_df, header_dict = strip_qualisys_tsv(qualisys_tsv_path, header_line_count=header_line_count)
-qualisys_start_timestamp = header_dict["time_stamp"]
+qualisys_start_timestamp = header_dict["time_stamp"][0]
 new_qual_dataframe = reformat_qualisys_dataframe(qualisys_df)
-qualisys_df_with_unix = insert_qualisys_timestamp_column(qualisys_df.copy(), qualisys_start_timestamp, lag_in_seconds=0)
-
+qualisys_df_with_unix = insert_qualisys_timestamp_column(new_qual_dataframe.copy(), qualisys_start_timestamp, lag_in_seconds=0)
 freemocap_timestamps, framerate = create_freemocap_unix_timestamps(freemocap_csv_path)
-# framerate= 29.97653535971666
 print(f"Calculated FreeMoCap framerate: {framerate}")
+synchronized_qualisys_df = synchronize_qualisys_data(qualisys_df_with_unix, freemocap_timestamps)
 
-qualisys_df, header_dict = strip_qualisys_tsv(qualisys_tsv_path, header_line_count=header_line_count)
-qualisys_start_timestamp = header_dict["time_stamp"]
+# qualisys_df, header_dict = strip_qualisys_tsv(qualisys_tsv_path, header_line_count=header_line_count)
+# qualisys_start_timestamp = header_dict["time_stamp"]
 
-new_qual_dataframe = reformat_qualisys_dataframe(qualisys_df)
+# new_qual_dataframe = reformat_qualisys_dataframe(qualisys_df)
 
 # qualisys_df_with_unix = insert_qualisys_timestamp_column(qualisys_df.copy(), qualisys_start_timestamp, lag_in_seconds=0)
 
